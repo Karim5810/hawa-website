@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import { ArrowLeft, Bike, Loader2, Store } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ArrowLeft, Bike, CheckCircle2, Loader2, Store } from 'lucide-react';
+import { m, useReducedMotion } from '../lib/motion';
 import { supabase } from '../lib/supabase';
+
+type ApplicationKind = 'driver' | 'vendor';
 
 type DriverFormState = {
   fullName: string;
@@ -16,10 +18,18 @@ type VendorFormState = {
 };
 
 type SubmissionState = {
-  loading: boolean;
-  error: string | null;
-  success: string | null;
+  status: 'idle' | 'submitting' | 'success' | 'error';
+  message: string | null;
 };
+
+type JoinUsProps = {
+  standalone?: boolean;
+  focusForm?: ApplicationKind | null;
+};
+
+const JOIN_US_SECTION_ID = 'join-us';
+const DRIVER_SECTION_ID = 'join-us-driver';
+const VENDOR_SECTION_ID = 'join-us-vendor';
 
 const initialDriverForm: DriverFormState = {
   fullName: '',
@@ -34,161 +44,323 @@ const initialVendorForm: VendorFormState = {
 };
 
 const initialSubmissionState: SubmissionState = {
-  loading: false,
-  error: null,
-  success: null,
+  status: 'idle',
+  message: null,
 };
 
-export default function JoinUs() {
+const vehicleOptions = [
+  { value: 'motorcycle', label: 'موتوسيكل' },
+  { value: 'bicycle', label: 'عجلة' },
+  { value: 'car', label: 'سيارة' },
+] as const;
+
+const businessOptions = [
+  { value: 'restaurant', label: 'مطعم' },
+  { value: 'supermarket', label: 'سوبر ماركت' },
+  { value: 'pharmacy', label: 'صيدلية' },
+  { value: 'other', label: 'نشاط آخر' },
+] as const;
+
+const arabicIndicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+const easternArabicDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+
+function normalizePhone(value: string) {
+  const latinDigits = value.replace(/[٠-٩]/g, (digit) => String(arabicIndicDigits.indexOf(digit)));
+  const normalizedDigits = latinDigits.replace(/[۰-۹]/g, (digit) =>
+    String(easternArabicDigits.indexOf(digit)),
+  );
+
+  const compactValue = normalizedDigits.replace(/[^\d+]/g, '');
+  const hasLeadingPlus = compactValue.startsWith('+');
+  const digitsOnly = compactValue.replace(/\D/g, '');
+
+  return `${hasLeadingPlus ? '+' : ''}${digitsOnly}`;
+}
+
+function validateDriverForm(form: DriverFormState) {
+  if (form.fullName.trim().length < 3) {
+    return 'من فضلك اكتب الاسم بالكامل بشكل صحيح.';
+  }
+
+  if (!/^\+?\d{8,15}$/.test(normalizePhone(form.phone))) {
+    return 'من فضلك اكتب رقم موبايل صحيح.';
+  }
+
+  if (!form.vehicleType) {
+    return 'اختر نوع المركبة قبل إرسال الطلب.';
+  }
+
+  return null;
+}
+
+function validateVendorForm(form: VendorFormState) {
+  if (form.businessName.trim().length < 2) {
+    return 'من فضلك اكتب اسم المتجر أو النشاط.';
+  }
+
+  if (!/^\+?\d{8,15}$/.test(normalizePhone(form.phone))) {
+    return 'من فضلك اكتب رقم موبايل صحيح.';
+  }
+
+  if (!form.businessType) {
+    return 'اختر نوع النشاط قبل إرسال الطلب.';
+  }
+
+  return null;
+}
+
+function resolveHighlightedForm(pathname: string, hash: string, fallback: ApplicationKind | null) {
+  if (pathname.endsWith('/join-us/driver') || hash === `#${DRIVER_SECTION_ID}`) {
+    return 'driver';
+  }
+
+  if (pathname.endsWith('/join-us/vendor') || hash === `#${VENDOR_SECTION_ID}`) {
+    return 'vendor';
+  }
+
+  return fallback;
+}
+
+export default function JoinUs({ standalone = false, focusForm = null }: JoinUsProps) {
   const [driverForm, setDriverForm] = useState<DriverFormState>(initialDriverForm);
   const [vendorForm, setVendorForm] = useState<VendorFormState>(initialVendorForm);
   const [driverSubmission, setDriverSubmission] = useState<SubmissionState>(initialSubmissionState);
   const [vendorSubmission, setVendorSubmission] = useState<SubmissionState>(initialSubmissionState);
+  const [highlightedForm, setHighlightedForm] = useState<ApplicationKind | null>(focusForm);
+  const shouldReduceMotion = useReducedMotion();
 
-  const submitDriverApplication = async (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    const syncHighlightedForm = () => {
+      const nextHighlightedForm = resolveHighlightedForm(
+        window.location.pathname,
+        window.location.hash,
+        focusForm,
+      );
+      setHighlightedForm(nextHighlightedForm);
+    };
+
+    syncHighlightedForm();
+    window.addEventListener('hashchange', syncHighlightedForm);
+
+    return () => {
+      window.removeEventListener('hashchange', syncHighlightedForm);
+    };
+  }, [focusForm]);
+
+  const submitDriverApplication = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setDriverSubmission({ loading: true, error: null, success: null });
 
-    const { error } = await supabase.from('driver_applications').insert({
-      full_name: driverForm.fullName.trim(),
-      phone: driverForm.phone.trim(),
-      vehicle_type: driverForm.vehicleType,
-    });
+    const validationError = validateDriverForm(driverForm);
+    if (validationError) {
+      setDriverSubmission({ status: 'error', message: validationError });
+      return;
+    }
 
-    if (error) {
+    setDriverSubmission({ status: 'submitting', message: 'جاري إرسال طلبك الآن...' });
+
+    try {
+      const { error } = await supabase.from('driver_applications').insert({
+        full_name: driverForm.fullName.trim(),
+        phone: normalizePhone(driverForm.phone),
+        vehicle_type: driverForm.vehicleType,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setDriverForm(initialDriverForm);
       setDriverSubmission({
-        loading: false,
-        error: 'تعذر إرسال طلب المندوب حالياً. حاول مرة أخرى.',
-        success: null,
+        status: 'success',
+        message: 'تم استلام طلبك بنجاح. سيقوم فريق هَوا بمراجعته والتواصل معك قريباً.',
       });
-      return;
+    } catch {
+      setDriverSubmission({
+        status: 'error',
+        message: 'تعذر إرسال طلب المندوب حالياً. حاول مرة أخرى بعد قليل.',
+      });
     }
-
-    setDriverForm(initialDriverForm);
-    setDriverSubmission({
-      loading: false,
-      error: null,
-      success: 'تم استلام طلبك. فريق هَوا سيتواصل معك قريباً.',
-    });
   };
 
-  const submitVendorApplication = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submitVendorApplication = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setVendorSubmission({ loading: true, error: null, success: null });
 
-    const { error } = await supabase.from('vendor_applications').insert({
-      business_name: vendorForm.businessName.trim(),
-      phone: vendorForm.phone.trim(),
-      business_type: vendorForm.businessType,
-    });
-
-    if (error) {
-      setVendorSubmission({
-        loading: false,
-        error: 'تعذر إرسال طلب التاجر حالياً. حاول مرة أخرى.',
-        success: null,
-      });
+    const validationError = validateVendorForm(vendorForm);
+    if (validationError) {
+      setVendorSubmission({ status: 'error', message: validationError });
       return;
     }
 
-    setVendorForm(initialVendorForm);
-    setVendorSubmission({
-      loading: false,
-      error: null,
-      success: 'تم تسجيل متجرك بنجاح. سنراجع الطلب ونتواصل معك.',
-    });
+    setVendorSubmission({ status: 'submitting', message: 'جاري إرسال بيانات المتجر الآن...' });
+
+    try {
+      const { error } = await supabase.from('vendor_applications').insert({
+        business_name: vendorForm.businessName.trim(),
+        phone: normalizePhone(vendorForm.phone),
+        business_type: vendorForm.businessType,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setVendorForm(initialVendorForm);
+      setVendorSubmission({
+        status: 'success',
+        message: 'تم تسجيل متجرك بنجاح. سيقوم فريق هَوا بمراجعة الطلب والتواصل معك قريباً.',
+      });
+    } catch {
+      setVendorSubmission({
+        status: 'error',
+        message: 'تعذر إرسال طلب الشريك حالياً. حاول مرة أخرى بعد قليل.',
+      });
+    }
   };
+
+  const driverCardClasses =
+    highlightedForm === 'driver' ? 'ring-2 ring-primary shadow-2xl shadow-primary/15' : 'shadow-lg';
+  const vendorCardClasses =
+    highlightedForm === 'vendor' ? 'ring-2 ring-primary shadow-2xl shadow-primary/15' : 'shadow-lg';
 
   return (
-    <section id="join-us" className="py-20 bg-slate-50 dark:bg-slate-950 transition-colors duration-500">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
+    <section
+      id={JOIN_US_SECTION_ID}
+      className={`section-shell scroll-mt-28 bg-slate-50 py-20 transition-colors duration-500 dark:bg-slate-950 ${
+        standalone ? 'min-h-[calc(100vh-10rem)] pt-32' : ''
+      }`}
+    >
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <m.div
+          initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 24 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ type: 'spring', stiffness: 40, damping: 15, mass: 1.5 }}
-          className="text-center mb-16"
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: shouldReduceMotion ? 0.3 : 0.5, ease: 'easeOut' }}
+          className="mb-16 text-center"
         >
-          <h2 className="text-4xl font-bold mb-4 dark:text-white">
+          <h2 className="mb-4 text-4xl font-bold dark:text-white">
             انضم لعائلة <span className="text-primary">هَوا</span>
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto">
-            سواء كنت تبحث عن فرصة عمل مرنة أو تريد تكبير مبيعات متجرك، يمكن الآن
-            إرسال الطلب مباشرة وسنراجعه من خلال لوحة البيانات.
+          <p className="mx-auto max-w-3xl text-lg text-slate-600 dark:text-slate-400">
+            سواء كنت تبحث عن فرصة عمل مرنة أو تريد تكبير مبيعات متجرك، يمكنك الآن إرسال الطلب مباشرة وسنراجعه من خلال لوحة البيانات.
           </p>
-        </motion.div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
+          {standalone && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <a
+                href="/join-us/driver"
+                className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:border-primary hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                صفحة التقديم للمندوبين
+              </a>
+              <a
+                href="/join-us/vendor"
+                className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:border-primary hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                صفحة التقديم للتجار
+              </a>
+            </div>
+          )}
+        </m.div>
+
+        <div className="grid gap-8 md:grid-cols-2">
+          <m.div
+            id={DRIVER_SECTION_ID}
+            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 32 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-50px' }}
-            transition={{ type: 'spring', stiffness: 40, damping: 15, mass: 1.5 }}
-            whileHover={{ y: -10 }}
-            className="bg-white dark:bg-slate-900 p-8 lg:p-12 rounded-[2.5rem] shadow-lg border border-slate-100 dark:border-slate-800 relative overflow-hidden group transition-colors"
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: shouldReduceMotion ? 0.28 : 0.45, ease: 'easeOut' }}
+            whileHover={shouldReduceMotion ? undefined : { y: -6 }}
+            className={`group relative scroll-mt-28 overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white p-8 transition-colors dark:border-slate-800 dark:bg-slate-900 lg:p-12 ${driverCardClasses}`}
           >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-full -z-10 transition-transform group-hover:scale-150" />
-            <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center text-slate-900 mb-8">
+            <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-bl-full bg-primary/10 transition-transform group-hover:scale-150" />
+            <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-slate-900">
               <Bike size={40} />
             </div>
-            <h3 className="text-3xl font-bold mb-4 dark:text-white">سجل كمندوب توصيل</h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-8 text-lg">
-              املأ البيانات الأساسية وسنضيف طلبك إلى قائمة التوظيف الفعلية في
-              Supabase لمراجعته والتواصل معك.
+            <h3 className="mb-4 text-3xl font-bold dark:text-white">سجل كمندوب توصيل</h3>
+            <p className="mb-8 text-lg text-slate-600 dark:text-slate-400">
+              املأ البيانات الأساسية وسنضيف طلبك إلى قائمة التوظيف الفعلية في Supabase لمراجعته والتواصل معك.
             </p>
 
             <form className="space-y-4" onSubmit={submitDriverApplication}>
               <input
                 type="text"
                 value={driverForm.fullName}
-                onChange={(event) =>
-                  setDriverForm((current) => ({ ...current, fullName: event.target.value }))
-                }
+                onChange={(event) => {
+                  setDriverForm((current) => ({ ...current, fullName: event.target.value }));
+                  setDriverSubmission(initialSubmissionState);
+                }}
                 placeholder="الاسم بالكامل"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-50 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+                disabled={driverSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
               />
               <input
                 type="tel"
+                dir="ltr"
+                inputMode="tel"
                 value={driverForm.phone}
-                onChange={(event) =>
-                  setDriverForm((current) => ({ ...current, phone: event.target.value }))
-                }
+                onChange={(event) => {
+                  setDriverForm((current) => ({ ...current, phone: event.target.value }));
+                  setDriverSubmission(initialSubmissionState);
+                }}
                 placeholder="رقم الموبايل"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-50 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+                disabled={driverSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
               />
               <select
                 value={driverForm.vehicleType}
-                onChange={(event) =>
-                  setDriverForm((current) => ({ ...current, vehicleType: event.target.value }))
-                }
+                onChange={(event) => {
+                  setDriverForm((current) => ({ ...current, vehicleType: event.target.value }));
+                  setDriverSubmission(initialSubmissionState);
+                }}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                disabled={driverSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               >
                 <option value="">نوع المركبة</option>
-                <option value="motorcycle">موتوسيكل</option>
-                <option value="bicycle">عجلة</option>
-                <option value="car">سيارة</option>
+                {vehicleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
 
-              {driverSubmission.error && (
-                <p className="text-sm font-medium text-red-500">{driverSubmission.error}</p>
-              )}
-              {driverSubmission.success && (
-                <p className="text-sm font-medium text-emerald-600">{driverSubmission.success}</p>
-              )}
+              <div aria-live="polite" className="min-h-12">
+                {driverSubmission.status === 'error' && driverSubmission.message && (
+                  <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                    {driverSubmission.message}
+                  </p>
+                )}
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                disabled={driverSubmission.loading}
-                className="w-full bg-slate-900 disabled:opacity-70 disabled:cursor-not-allowed dark:bg-primary text-white dark:text-slate-900 px-6 py-4 rounded-xl font-bold hover:bg-slate-800 dark:hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"
+                {driverSubmission.status === 'success' && driverSubmission.message && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
+                      <div>
+                        <p className="font-bold">تم إرسال الطلب</p>
+                        <p className="mt-1 leading-6">{driverSubmission.message}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <m.button
+                type="submit"
+                whileHover={
+                  shouldReduceMotion || driverSubmission.status === 'submitting' ? undefined : { scale: 1.01 }
+                }
+                whileTap={
+                  shouldReduceMotion || driverSubmission.status === 'submitting' ? undefined : { scale: 0.99 }
+                }
+                disabled={driverSubmission.status === 'submitting'}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-4 font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-primary dark:text-slate-900 dark:hover:bg-primary-hover"
               >
-                {driverSubmission.loading ? (
+                {driverSubmission.status === 'submitting' ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    جاري الإرسال...
+                    جاري إرسال الطلب...
                   </>
                 ) : (
                   <>
@@ -196,81 +368,108 @@ export default function JoinUs() {
                     <ArrowLeft size={20} />
                   </>
                 )}
-              </motion.button>
+              </m.button>
             </form>
-          </motion.div>
+          </m.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
+          <m.div
+            id={VENDOR_SECTION_ID}
+            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 32 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-50px' }}
-            transition={{ type: 'spring', stiffness: 40, damping: 15, mass: 1.5, delay: 0.2 }}
-            whileHover={{ y: -10 }}
-            className="bg-slate-900 dark:bg-slate-800 text-white p-8 lg:p-12 rounded-[2.5rem] shadow-lg relative overflow-hidden group transition-colors"
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: shouldReduceMotion ? 0.28 : 0.45, delay: 0.06, ease: 'easeOut' }}
+            whileHover={shouldReduceMotion ? undefined : { y: -6 }}
+            className={`group relative scroll-mt-28 overflow-hidden rounded-[2.5rem] bg-slate-900 p-8 text-white transition-colors dark:bg-slate-800 lg:p-12 ${vendorCardClasses}`}
           >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-bl-full -z-10 transition-transform group-hover:scale-150" />
-            <div className="w-20 h-20 bg-slate-800 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-primary mb-8">
+            <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-bl-full bg-primary/20 transition-transform group-hover:scale-150" />
+            <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-800 text-primary dark:bg-slate-900">
               <Store size={40} />
             </div>
-            <h3 className="text-3xl font-bold mb-4">سجل كشريك / تاجر</h3>
-            <p className="text-slate-300 dark:text-slate-400 mb-8 text-lg">
-              بيانات المتجر ستُرسل مباشرة إلى جدول الشركاء في Supabase ليتم
-              متابعتها وربطها بفريق المبيعات.
+            <h3 className="mb-4 text-3xl font-bold">سجل كشريك / تاجر</h3>
+            <p className="mb-8 text-lg text-slate-300 dark:text-slate-400">
+              بيانات المتجر سترسل مباشرة إلى جدول الشركاء في Supabase ليتم متابعتها وربطها بفريق المبيعات.
             </p>
 
             <form className="space-y-4" onSubmit={submitVendorApplication}>
               <input
                 type="text"
                 value={vendorForm.businessName}
-                onChange={(event) =>
-                  setVendorForm((current) => ({ ...current, businessName: event.target.value }))
-                }
+                onChange={(event) => {
+                  setVendorForm((current) => ({ ...current, businessName: event.target.value }));
+                  setVendorSubmission(initialSubmissionState);
+                }}
                 placeholder="اسم المتجر"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-700 dark:border-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-800 dark:bg-slate-900 text-white placeholder:text-slate-400"
+                disabled={vendorSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900"
               />
               <input
                 type="tel"
+                dir="ltr"
+                inputMode="tel"
                 value={vendorForm.phone}
-                onChange={(event) =>
-                  setVendorForm((current) => ({ ...current, phone: event.target.value }))
-                }
+                onChange={(event) => {
+                  setVendorForm((current) => ({ ...current, phone: event.target.value }));
+                  setVendorSubmission(initialSubmissionState);
+                }}
                 placeholder="رقم الموبايل"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-700 dark:border-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-800 dark:bg-slate-900 text-white placeholder:text-slate-400"
+                disabled={vendorSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900"
               />
               <select
                 value={vendorForm.businessType}
-                onChange={(event) =>
-                  setVendorForm((current) => ({ ...current, businessType: event.target.value }))
-                }
+                onChange={(event) => {
+                  setVendorForm((current) => ({ ...current, businessType: event.target.value }));
+                  setVendorSubmission(initialSubmissionState);
+                }}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-slate-700 dark:border-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-slate-800 dark:bg-slate-900 text-slate-400"
+                disabled={vendorSubmission.status === 'submitting'}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-600 dark:bg-slate-900"
               >
                 <option value="">نوع النشاط</option>
-                <option value="restaurant">مطعم</option>
-                <option value="supermarket">سوبر ماركت</option>
-                <option value="pharmacy">صيدلية</option>
-                <option value="other">أخرى</option>
+                {businessOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
 
-              {vendorSubmission.error && (
-                <p className="text-sm font-medium text-red-300">{vendorSubmission.error}</p>
-              )}
-              {vendorSubmission.success && (
-                <p className="text-sm font-medium text-emerald-300">{vendorSubmission.success}</p>
-              )}
+              <div aria-live="polite" className="min-h-12">
+                {vendorSubmission.status === 'error' && vendorSubmission.message && (
+                  <p className="rounded-2xl border border-red-900/50 bg-red-950/40 px-4 py-3 text-sm font-medium text-red-200">
+                    {vendorSubmission.message}
+                  </p>
+                )}
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                disabled={vendorSubmission.loading}
-                className="w-full bg-primary disabled:opacity-70 disabled:cursor-not-allowed text-slate-900 px-6 py-4 rounded-xl font-bold hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"
+                {vendorSubmission.status === 'success' && vendorSubmission.message && (
+                  <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/40 px-4 py-4 text-sm text-emerald-200">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
+                      <div>
+                        <p className="font-bold">تم إرسال الطلب</p>
+                        <p className="mt-1 leading-6">{vendorSubmission.message}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <m.button
+                type="submit"
+                whileHover={
+                  shouldReduceMotion || vendorSubmission.status === 'submitting' ? undefined : { scale: 1.01 }
+                }
+                whileTap={
+                  shouldReduceMotion || vendorSubmission.status === 'submitting' ? undefined : { scale: 0.99 }
+                }
+                disabled={vendorSubmission.status === 'submitting'}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 font-bold text-slate-900 transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {vendorSubmission.loading ? (
+                {vendorSubmission.status === 'submitting' ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    جاري الإرسال...
+                    جاري إرسال الطلب...
                   </>
                 ) : (
                   <>
@@ -278,9 +477,9 @@ export default function JoinUs() {
                     <ArrowLeft size={20} />
                   </>
                 )}
-              </motion.button>
+              </m.button>
             </form>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

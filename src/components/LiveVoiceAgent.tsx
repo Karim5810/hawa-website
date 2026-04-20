@@ -1,179 +1,226 @@
-import { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { Mic, MicOff, Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Mic, MicOff } from 'lucide-react';
+import { m, useReducedMotion } from '../lib/motion';
+
+let googleGenAiModulePromise: Promise<typeof import('@google/genai')> | null = null;
+
+function loadGoogleGenAi() {
+  if (!googleGenAiModulePromise) {
+    googleGenAiModulePromise = import('@google/genai');
+  }
+
+  return googleGenAiModulePromise;
+}
 
 export default function LiveVoiceAgent() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<string>('');
-  
-  const sessionRef = useRef<any>(null);
+  const shouldReduceMotion = useReducedMotion();
+
+  const sessionRef = useRef<Promise<any> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const playbackQueueRef = useRef<Float32Array[]>([]);
-  const isPlayingRef = useRef(false);
   const nextPlayTimeRef = useRef(0);
+  const isDisconnectingRef = useRef(false);
+
+  const disconnect = () => {
+    if (isDisconnectingRef.current) {
+      return;
+    }
+
+    isDisconnectingRef.current = true;
+
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
+    }
+
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      void audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (sessionRef.current) {
+      void sessionRef.current
+        .then((session) => session.close())
+        .catch(() => undefined);
+      sessionRef.current = null;
+    }
+
+    nextPlayTimeRef.current = 0;
+    setIsConnected(false);
+    setIsConnecting(false);
+
+    window.setTimeout(() => {
+      isDisconnectingRef.current = false;
+    }, 0);
+  };
+
+  const playAudioChunk = (base64Audio: string) => {
+    if (!audioContextRef.current) {
+      return;
+    }
+
+    const binaryString = atob(base64Audio);
+    const bytes = new Uint8Array(binaryString.length);
+
+    for (let index = 0; index < binaryString.length; index += 1) {
+      bytes[index] = binaryString.charCodeAt(index);
+    }
+
+    const int16Array = new Int16Array(bytes.buffer);
+    const float32Array = new Float32Array(int16Array.length);
+
+    for (let index = 0; index < int16Array.length; index += 1) {
+      float32Array[index] = int16Array[index] / 32768;
+    }
+
+    const audioBuffer = audioContextRef.current.createBuffer(1, float32Array.length, 24000);
+    audioBuffer.getChannelData(0).set(float32Array);
+
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContextRef.current.destination);
+
+    const currentTime = audioContextRef.current.currentTime;
+    if (nextPlayTimeRef.current < currentTime) {
+      nextPlayTimeRef.current = currentTime;
+    }
+
+    source.start(nextPlayTimeRef.current);
+    nextPlayTimeRef.current += audioBuffer.duration;
+  };
 
   const connect = async () => {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+
+    if (!geminiApiKey) {
+      setError('مفتاح Gemini غير متوفر حالياً.');
+      return;
+    }
+
     try {
       setIsConnecting(true);
       setError(null);
 
-      // Initialize Audio Context
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      
-      // Get Microphone Access
+      const { GoogleGenAI, Modality } = await loadGoogleGenAi();
+
+      audioContextRef.current = new (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)!({
+        sampleRate: 16000,
+      });
+
       mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       sourceRef.current = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
-      
-      // Create ScriptProcessor for capturing audio (deprecated but widely supported for raw PCM)
       processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-      
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
+
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
       const sessionPromise = ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: 'gemini-3.1-flash-live-preview',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "charon" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'charon' } },
           },
-          systemInstruction: "أنت مساعد ذكي لتطبيق توصيل طلبات اسمه 'هَوا'. تحدث باللغة العربية بلهجة مصرية ودودة. ساعد المستخدم في المطلوب فيما يخص التطبيق.",
+          systemInstruction:
+            "أنت مساعد ذكي لتطبيق توصيل طلبات اسمه 'هَوا'. تحدث باللغة العربية بلهجة مصرية ودودة. ساعد المستخدم فيما يخص التطبيق.",
         },
         callbacks: {
           onopen: () => {
             setIsConnected(true);
             setIsConnecting(false);
-            
-            processorRef.current!.onaudioprocess = (e: AudioProcessingEvent) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              // Convert Float32 to Int16
+
+            if (!processorRef.current || !sourceRef.current || !audioContextRef.current) {
+              return;
+            }
+
+            processorRef.current.onaudioprocess = (event: AudioProcessingEvent) => {
+              const inputData = event.inputBuffer.getChannelData(0);
               const pcm16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                pcm16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+
+              for (let index = 0; index < inputData.length; index += 1) {
+                pcm16[index] = Math.max(-32768, Math.min(32767, inputData[index] * 32768));
               }
-              // Convert to Base64
+
               const buffer = new Uint8Array(pcm16.buffer);
               let binary = '';
-              for (let i = 0; i < buffer.byteLength; i++) {
-                binary += String.fromCharCode(buffer[i]);
+
+              for (let index = 0; index < buffer.byteLength; index += 1) {
+                binary += String.fromCharCode(buffer[index]);
               }
+
               const base64Data = btoa(binary);
-              
-              sessionPromise.then((session) =>
+
+              void sessionPromise.then((session) =>
                 session.sendRealtimeInput({
-                  audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
-                })
+                  audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' },
+                }),
               );
             };
-            
-            sourceRef.current!.connect(processorRef.current!);
-            processorRef.current!.connect(audioContextRef.current!.destination);
+
+            sourceRef.current.connect(processorRef.current);
+            processorRef.current.connect(audioContextRef.current.destination);
           },
-          onmessage: async (message: LiveServerMessage) => {
+          onmessage: (message: any) => {
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+
             if (base64Audio) {
               playAudioChunk(base64Audio);
             }
+
             if (message.serverContent?.interrupted) {
-              playbackQueueRef.current = [];
-              nextPlayTimeRef.current = audioContextRef.current?.currentTime || 0;
+              nextPlayTimeRef.current = audioContextRef.current?.currentTime ?? 0;
             }
           },
-          onerror: (err) => {
-            console.error("Live API Error:", err);
-            setError("حدث خطأ في الاتصال.");
+          onerror: () => {
+            setError('حدث خطأ في الاتصال.');
             disconnect();
           },
           onclose: () => {
-            disconnect();
-          }
-        }
+            if (!isDisconnectingRef.current) {
+              disconnect();
+            }
+          },
+        },
       });
-      
+
       sessionRef.current = sessionPromise;
-      
-    } catch (err) {
-      console.error(err);
-      setError("تعذر الوصول إلى الميكروفون أو الاتصال بالخادم.");
+    } catch {
+      setError('تعذر الوصول إلى الميكروفون أو الاتصال بالخادم.');
       setIsConnecting(false);
       disconnect();
     }
   };
 
-  const playAudioChunk = (base64Audio: string) => {
-    if (!audioContextRef.current) return;
-    
-    const binaryString = atob(base64Audio);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    // Decode PCM16 to Float32
-    const int16Array = new Int16Array(bytes.buffer);
-    const float32Array = new Float32Array(int16Array.length);
-    for (let i = 0; i < int16Array.length; i++) {
-      float32Array[i] = int16Array[i] / 32768.0;
-    }
-    
-    const audioBuffer = audioContextRef.current.createBuffer(1, float32Array.length, 24000);
-    audioBuffer.getChannelData(0).set(float32Array);
-    
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioContextRef.current.destination);
-    
-    const currentTime = audioContextRef.current.currentTime;
-    if (nextPlayTimeRef.current < currentTime) {
-      nextPlayTimeRef.current = currentTime;
-    }
-    
-    source.start(nextPlayTimeRef.current);
-    nextPlayTimeRef.current += audioBuffer.duration;
-  };
-
-  const disconnect = () => {
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current.onaudioprocess = null;
-    }
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-    }
-    if (sessionRef.current) {
-      sessionRef.current.then((session: any) => session.close());
-    }
-    setIsConnected(false);
-    setIsConnecting(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, []);
+  useEffect(() => () => disconnect(), []);
 
   return (
-    <div className="flex flex-col items-center gap-4 mt-8">
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-      
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+    <div className="mt-8 flex flex-col items-center gap-4">
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      <m.button
+        whileHover={shouldReduceMotion || isConnecting ? undefined : { scale: 1.03 }}
+        whileTap={shouldReduceMotion || isConnecting ? undefined : { scale: 0.97 }}
         onClick={isConnected ? disconnect : connect}
         disabled={isConnecting}
-        className={`relative flex items-center justify-center gap-3 px-8 py-4 rounded-full font-bold text-lg transition-all shadow-xl ${
-          isConnected 
-            ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-500/20' 
-            : 'bg-primary text-slate-900 hover:bg-primary-hover shadow-primary/20'
+        className={`relative flex items-center justify-center gap-3 rounded-full px-8 py-4 text-lg font-bold shadow-xl transition-all ${
+          isConnected
+            ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600'
+            : 'bg-primary text-slate-900 shadow-primary/20 hover:bg-primary-hover'
         }`}
       >
         {isConnecting ? (
@@ -192,18 +239,16 @@ export default function LiveVoiceAgent() {
             تحدث مع المساعد الآن
           </>
         )}
-        
+
         {isConnected && (
           <span className="absolute -top-2 -right-2 flex h-5 w-5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 border-2 border-slate-900"></span>
+            <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+            <span className="relative inline-flex h-5 w-5 rounded-full border-2 border-slate-900 bg-red-500" />
           </span>
         )}
-      </motion.button>
-      
-      {isConnected && (
-        <p className="text-primary text-sm animate-pulse">المساعد يستمع إليك...</p>
-      )}
+      </m.button>
+
+      {isConnected && <p className="animate-pulse text-sm text-primary">المساعد يستمع إليك...</p>}
     </div>
   );
 }

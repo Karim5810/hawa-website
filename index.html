@@ -6,83 +6,9 @@
     <title>تطبيق هَوا - hawa</title>
     <link rel="icon" type="image/png" href="/app-logo-hawa.png" />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-      #hawa-splash {
-        position: fixed;
-        inset: 0;
-        background: #FFFFFF;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 999999;
-        transition: opacity 0.5s ease;
-      }
-      @media (prefers-color-scheme: dark) {
-        #hawa-splash { background: #0B0F14; }
-      }
-      .logo-pulse {
-        width: 80px;
-        height: 80px;
-        background: #b3ff38;
-        border-radius: 20px;
-        box-shadow: 0 0 30px rgba(179, 255, 56, 0.4);
-        animation: logo-pulse 1.8s infinite ease-in-out;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .logo-pulse img {
-        width: 50px;
-        height: 50px;
-        object-fit: contain;
-      }
-      @keyframes logo-pulse {
-        0%, 100% { transform: scale(0.9); opacity: 0.8; }
-        50% { transform: scale(1.1); opacity: 1; }
-      }
-      .loading-bar {
-        width: 120px;
-        height: 4px;
-        background: rgba(179, 255, 56, 0.2);
-        border-radius: 2px;
-        margin-top: 24px;
-        overflow: hidden;
-        position: relative;
-      }
-      .loading-bar::after {
-        content: '';
-        position: absolute;
-        width: 40%;
-        height: 100%;
-        background: #b3ff38;
-        animation: loading-move 1.5s infinite ease-in-out;
-      }
-      @keyframes loading-move {
-        from { left: -40%; }
-        to { left: 100%; }
-      }
-    </style>
   </head>
   <body>
-    <div id="hawa-splash">
-      <div class="logo-pulse">
-        <img src="/app-logo-hawa.png" alt="hawa logo" />
-      </div>
-      <div class="loading-bar"></div>
-    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          const splash = document.getElementById('hawa-splash');
-          if (splash) {
-            splash.style.opacity = '0';
-            setTimeout(() => splash.remove(), 500);
-          }
-        }, 1000);
-      });
-    </script>
   </body>
 </html>

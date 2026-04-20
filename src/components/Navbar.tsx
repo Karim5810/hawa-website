@@ -1,68 +1,126 @@
 import { useState } from 'react';
-import { Menu, X, Download } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Download, Menu, X } from 'lucide-react';
+import { AnimatePresence, m, useReducedMotion } from '../lib/motion';
 import Logo from './Logo';
 import ThemeToggle from './ThemeToggle';
 
+function sectionHref(sectionId: string) {
+  if (typeof window === 'undefined') {
+    return `#${sectionId}`;
+  }
+
+  return window.location.pathname.startsWith('/join-us') ? `/#${sectionId}` : `#${sectionId}`;
+}
+
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
+  const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
+
+  const featuresHref = sectionHref('features');
+  const voiceAiHref = sectionHref('voice-ai');
+  const joinUsHref = pathname.startsWith('/join-us') ? '#join-us' : sectionHref('join-us');
 
   return (
-    <nav className="fixed w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-500">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          <div className="flex items-center gap-3">
+    <nav className="fixed z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md transition-colors duration-500 dark:border-slate-800 dark:bg-slate-900/80">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-20 items-center justify-between">
+          <a href="/" className="flex items-center gap-3">
             <Logo />
             <span className="text-2xl font-bold dark:text-white">هَوا</span>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary font-semibold transition-colors">المميزات</a>
-            <a href="#voice-ai" className="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary font-semibold transition-colors">المساعد الصوتي</a>
-            <a href="#join-us" className="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary font-semibold transition-colors">انضم إلينا</a>
+          </a>
+
+          <div className="hidden items-center gap-8 md:flex">
+            <a
+              href={featuresHref}
+              className="font-semibold text-slate-600 transition-colors hover:text-primary dark:text-slate-300 dark:hover:text-primary"
+            >
+              المميزات
+            </a>
+            <a
+              href={voiceAiHref}
+              className="font-semibold text-slate-600 transition-colors hover:text-primary dark:text-slate-300 dark:hover:text-primary"
+            >
+              المساعد الصوتي
+            </a>
+            <a
+              href={joinUsHref}
+              className="font-semibold text-slate-600 transition-colors hover:text-primary dark:text-slate-300 dark:hover:text-primary"
+            >
+              انضم إلينا
+            </a>
             <ThemeToggle />
-            <motion.a 
-              whileHover={{ y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              href="package-756655/Hawa.apk"
+            <m.a
+              whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 24 }}
+              href="/package-756655/Hawa.apk"
               download="Hawa.apk"
-              className="bg-primary text-slate-900 px-6 py-2.5 rounded-full font-bold hover:bg-primary-hover transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+              className="flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-bold text-slate-900 shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover"
             >
               <Download size={20} />
-              حمل التطبيق
-            </motion.a>
+              حمّل التطبيق
+            </m.a>
           </div>
 
-          <div className="md:hidden flex items-center gap-4">
+          <div className="flex items-center gap-4 md:hidden">
             <ThemeToggle />
-            <button onClick={() => setIsOpen(!isOpen)} className="text-slate-900 dark:text-white">
+            <button
+              type="button"
+              onClick={() => setIsOpen((current) => !current)}
+              className="text-slate-900 dark:text-white"
+              aria-expanded={isOpen}
+              aria-label={isOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
+            >
               {isOpen ? <X size={28} /> : <Menu size={28} />}
             </button>
           </div>
         </div>
       </div>
 
-      {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 50, damping: 15 }}
-          className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 pt-2 pb-6 space-y-4"
-        >
-          <a href="#features" className="block text-slate-600 dark:text-slate-300 font-semibold" onClick={() => setIsOpen(false)}>المميزات</a>
-          <a href="#voice-ai" className="block text-slate-600 dark:text-slate-300 font-semibold" onClick={() => setIsOpen(false)}>المساعد الصوتي</a>
-          <a href="#join-us" className="block text-slate-600 dark:text-slate-300 font-semibold" onClick={() => setIsOpen(false)}>انضم إلينا</a>
-          <a 
-            href="package-756655/Hawa.apk"
-            download="Hawa.apk"
-            className="bg-primary text-slate-900 px-6 py-3 rounded-full font-bold text-center flex items-center justify-center gap-2"
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <m.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0.18 : 0.28, ease: 'easeOut' }}
+            className="overflow-hidden border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden"
           >
-            <Download size={20} />
-            حمل التطبيق الآن
-          </a>
-        </motion.div>
-      )}
+            <div className="space-y-4 px-4 pt-2 pb-6">
+              <a
+                href={featuresHref}
+                className="block font-semibold text-slate-600 dark:text-slate-300"
+                onClick={() => setIsOpen(false)}
+              >
+                المميزات
+              </a>
+              <a
+                href={voiceAiHref}
+                className="block font-semibold text-slate-600 dark:text-slate-300"
+                onClick={() => setIsOpen(false)}
+              >
+                المساعد الصوتي
+              </a>
+              <a
+                href={joinUsHref}
+                className="block font-semibold text-slate-600 dark:text-slate-300"
+                onClick={() => setIsOpen(false)}
+              >
+                انضم إلينا
+              </a>
+              <a
+                href="/package-756655/Hawa.apk"
+                download="Hawa.apk"
+                className="flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-center font-bold text-slate-900"
+              >
+                <Download size={20} />
+                حمّل التطبيق الآن
+              </a>
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }

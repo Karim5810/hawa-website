@@ -17,10 +17,56 @@ body {
   font-family: "Cairo", sans-serif;
   background-color: var(--color-light);
   color: var(--color-dark);
+  overflow-x: hidden;
   transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 html.dark body {
   background-color: var(--color-darker);
   color: var(--color-light);
+}
+
+.gpu-layer {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.float-gentle {
+  animation: float-gentle 7s ease-in-out infinite;
+}
+
+.marquee-track {
+  animation: marquee-track 24s linear infinite;
+}
+
+@keyframes float-gentle {
+  0%,
+  100% {
+    transform: translate3d(0, -8px, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 8px, 0);
+  }
+}
+
+@keyframes marquee-track {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .float-gentle,
+  .marquee-track {
+    animation: none;
+  }
 }
