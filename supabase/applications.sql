@@ -28,10 +28,25 @@ create index if not exists vendor_applications_created_at_idx
 alter table public.driver_applications enable row level security;
 alter table public.vendor_applications enable row level security;
 
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    auth.jwt() ->> 'role' = 'service_role'
+    or (auth.jwt() -> 'app_metadata' -> 'roles') @> '["admin"]'::jsonb,
+    false
+  );
+$$;
+
 grant insert on public.driver_applications to anon;
 grant insert on public.vendor_applications to anon;
 grant select on public.driver_applications to authenticated;
 grant select on public.vendor_applications to authenticated;
+grant execute on function public.is_admin() to authenticated;
 
 drop policy if exists driver_applications_insert_public on public.driver_applications;
 create policy driver_applications_insert_public

@@ -38,8 +38,16 @@ export default function Features() {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <section id="features" className="section-shell bg-white py-20 transition-colors duration-500 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section
+      id="features"
+      className="section-shell relative overflow-hidden bg-white py-24 transition-colors duration-500 dark:bg-slate-950"
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="premium-grid absolute inset-0 opacity-45" />
+        <div className="absolute left-[-10rem] top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute right-[-8rem] bottom-10 h-80 w-80 rounded-full bg-cyan-200/30 blur-3xl dark:bg-cyan-500/10" />
+      </div>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <m.div
           initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -47,7 +55,7 @@ export default function Features() {
           transition={{ duration: shouldReduceMotion ? 0.3 : 0.55, ease: 'easeOut' }}
           className="mb-16 text-center"
         >
-          <h2 className="mb-4 text-4xl font-bold dark:text-white">
+          <h2 className="mx-auto mb-4 max-w-3xl text-4xl font-black leading-tight dark:text-white lg:text-5xl">
             كل اللي تحتاجه في <span className="text-primary">تطبيق واحد</span>
           </h2>
           <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-400">
@@ -55,7 +63,7 @@ export default function Features() {
           </p>
         </m.div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, index) => (
             <m.div
               key={feature.title}
@@ -63,14 +71,16 @@ export default function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: shouldReduceMotion ? 0.28 : 0.45, delay: index * 0.05, ease: 'easeOut' }}
-              whileHover={shouldReduceMotion ? undefined : { y: -8 }}
-              className="group rounded-3xl border border-slate-100 bg-slate-50 p-8 transition-all hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/30 dark:hover:shadow-primary/5"
+              whileHover={shouldReduceMotion ? undefined : { y: -10, scale: 1.015 }}
+              className="cinematic-shine group relative min-h-[260px] overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/80 p-8 shadow-[0_18px_60px_-38px_rgba(15,23,42,0.75)] backdrop-blur-xl transition-colors hover:border-primary/45 dark:border-white/10 dark:bg-white/[0.055]"
             >
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-sm transition-all group-hover:bg-primary group-hover:text-slate-900 dark:bg-slate-800 dark:text-white">
-                {feature.icon}
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-transparent via-primary to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <div className="absolute -left-10 -top-10 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-transform duration-500 group-hover:scale-150" />
+              <div className="relative mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-950 text-primary shadow-lg shadow-slate-900/10 transition-all group-hover:bg-primary group-hover:text-slate-950 dark:bg-slate-900 dark:text-primary">
+                <span className="relative z-10">{feature.icon}</span>
               </div>
-              <h3 className="mb-3 text-xl font-bold dark:text-white">{feature.title}</h3>
-              <p className="leading-relaxed text-slate-600 dark:text-slate-400">{feature.description}</p>
+              <h3 className="relative mb-3 text-xl font-black text-slate-950 dark:text-white">{feature.title}</h3>
+              <p className="relative leading-relaxed text-slate-600 dark:text-slate-400">{feature.description}</p>
             </m.div>
           ))}
         </div>

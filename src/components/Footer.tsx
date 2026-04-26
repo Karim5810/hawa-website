@@ -13,8 +13,12 @@ function sectionHref(sectionId: string) {
 
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-white pt-16 pb-8 transition-colors duration-500 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <footer className="relative overflow-hidden border-t border-white/70 bg-white pt-16 pb-8 transition-colors duration-500 dark:border-white/10 dark:bg-slate-950">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="premium-grid absolute inset-0 opacity-25" />
+        <div className="absolute left-[-10rem] top-[-8rem] h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+      </div>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <a href="/" className="mb-6 flex items-center gap-3">
@@ -27,19 +31,19 @@ export default function Footer() {
             <div className="flex gap-4">
               <a
                 href="#"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-primary hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-primary dark:hover:text-slate-900"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition-colors hover:bg-primary hover:text-slate-900 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-primary dark:hover:text-slate-900"
               >
                 <Facebook size={20} />
               </a>
               <a
                 href="#"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-primary hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-primary dark:hover:text-slate-900"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition-colors hover:bg-primary hover:text-slate-900 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-primary dark:hover:text-slate-900"
               >
                 <Instagram size={20} />
               </a>
               <a
                 href="#"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-primary hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-primary dark:hover:text-slate-900"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition-colors hover:bg-primary hover:text-slate-900 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-primary dark:hover:text-slate-900"
               >
                 <Twitter size={20} />
               </a>
@@ -128,7 +132,7 @@ export default function Footer() {
             <a
               href="/package-756655/Hawa.apk"
               download="Hawa.apk"
-              className="flex w-full items-center justify-center gap-3 rounded-xl bg-slate-900 px-6 py-3 font-bold text-white transition-colors hover:bg-slate-800 dark:bg-primary dark:text-slate-900 dark:hover:bg-primary-hover"
+              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-6 py-3 font-bold text-white shadow-xl shadow-slate-900/10 transition-colors hover:bg-slate-800 dark:bg-primary dark:text-slate-900 dark:hover:bg-primary-hover"
             >
               <Download size={20} className="text-primary dark:text-slate-900" />
               تحميل التطبيق

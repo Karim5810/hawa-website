@@ -22,7 +22,7 @@ export default function Navbar() {
   const joinUsHref = pathname.startsWith('/join-us') ? '#join-us' : sectionHref('join-us');
 
   return (
-    <nav className="fixed z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md transition-colors duration-500 dark:border-slate-800 dark:bg-slate-900/80">
+    <nav className="fixed z-50 w-full border-b border-white/70 bg-white/[0.72] shadow-[0_14px_50px_-42px_rgba(15,23,42,0.9)] backdrop-blur-2xl transition-colors duration-500 dark:border-white/10 dark:bg-slate-950/70">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
           <a href="/" className="flex items-center gap-3">
@@ -56,7 +56,7 @@ export default function Navbar() {
               transition={{ type: 'spring', stiffness: 360, damping: 24 }}
               href="/package-756655/Hawa.apk"
               download="Hawa.apk"
-              className="flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-bold text-slate-900 shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover"
+              className="flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-bold text-slate-900 shadow-lg shadow-primary/25 transition-colors hover:bg-primary-hover"
             >
               <Download size={20} />
               حمّل التطبيق
@@ -85,7 +85,7 @@ export default function Navbar() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: shouldReduceMotion ? 0.18 : 0.28, ease: 'easeOut' }}
-            className="overflow-hidden border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden"
+            className="overflow-hidden border-b border-white/70 bg-white/95 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/95 md:hidden"
           >
             <div className="space-y-4 px-4 pt-2 pb-6">
               <a

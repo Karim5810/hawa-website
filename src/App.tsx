@@ -32,7 +32,7 @@ export default function App() {
 
   if (joinUsVariant) {
     return (
-      <div className="min-h-screen bg-[#f4f6f8] text-slate-900 font-sans" dir="rtl">
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans dark:bg-slate-950" dir="rtl">
         <Splash />
         <Navbar />
         <main>
@@ -44,7 +44,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f6f8] text-slate-900 font-sans" dir="rtl">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans dark:bg-slate-950" dir="rtl">
       <Splash />
       <Navbar />
       <main>

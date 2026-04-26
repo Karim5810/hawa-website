@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ChefHat, HeartPulse, Mic, Navigation } from 'lucide-react';
+import { AudioWaveform, ChefHat, HeartPulse, Mic, Navigation, Sparkles } from 'lucide-react';
 import { m, useReducedMotion } from '../lib/motion';
 
 const LiveVoiceAgent = lazy(() => import('./LiveVoiceAgent'));
@@ -62,9 +62,13 @@ export default function VoiceAI() {
     <section
       ref={sectionRef}
       id="voice-ai"
-      className="section-shell overflow-hidden bg-slate-900 py-20 text-white transition-colors duration-500"
+      className="section-shell relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(179,255,56,0.18),transparent_28rem),linear-gradient(135deg,#020617_0%,#0f172a_48%,#020617_100%)] py-24 text-white transition-colors duration-500"
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="premium-grid absolute inset-0 opacity-25" />
+        <div className="absolute bottom-[-14rem] left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+      </div>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid items-center gap-16 lg:grid-cols-2">
           <m.div
             initial={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0.94, y: shouldReduceMotion ? 0 : 30 }}
@@ -74,7 +78,22 @@ export default function VoiceAI() {
             className="relative order-2 lg:order-1"
           >
             <div className="absolute inset-0 rounded-full bg-primary/20 blur-[100px]" />
-            <div className="relative flex min-h-[400px] flex-col items-center justify-center rounded-[3rem] border border-slate-700 bg-slate-800 p-8 shadow-2xl">
+            <div className="relative flex min-h-[430px] flex-col items-center justify-center overflow-hidden rounded-[3rem] border border-white/10 bg-white/[0.065] p-8 shadow-2xl shadow-black/25 backdrop-blur-2xl">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(179,255,56,0.16),transparent_18rem)]" />
+              <div className="pulse-ring absolute h-56 w-56 rounded-full border border-primary/30" />
+              <div className="pulse-ring absolute h-72 w-72 rounded-full border border-primary/20 [animation-delay:0.55s]" />
+              <div className="relative mb-8 flex h-28 w-28 items-center justify-center rounded-full border border-primary/25 bg-slate-950/70 shadow-[0_0_80px_rgba(179,255,56,0.22)]">
+                <AudioWaveform size={38} className="text-primary" />
+                <div className="absolute bottom-5 flex items-end gap-1">
+                  {[18, 26, 34, 24, 16].map((height, index) => (
+                    <span
+                      key={`voice-bar-${index}`}
+                      className="sound-bar block w-1.5 rounded-full bg-primary"
+                      style={{ height }}
+                    />
+                  ))}
+                </div>
+              </div>
               <div className="mb-8 text-center">
                 <h3 className="mb-2 text-2xl font-bold text-white">جرّب المساعد الصوتي بنفسك</h3>
                 <p className="text-slate-400">
@@ -82,13 +101,15 @@ export default function VoiceAI() {
                 </p>
               </div>
 
-              {shouldLoadAgent ? (
-                <Suspense fallback={<VoiceAgentFallback />}>
-                  <LiveVoiceAgent />
-                </Suspense>
-              ) : (
-                <VoiceAgentFallback />
-              )}
+              <div className="relative z-10">
+                {shouldLoadAgent ? (
+                  <Suspense fallback={<VoiceAgentFallback />}>
+                    <LiveVoiceAgent />
+                  </Suspense>
+                ) : (
+                  <VoiceAgentFallback />
+                )}
+              </div>
             </div>
           </m.div>
 
@@ -99,11 +120,11 @@ export default function VoiceAI() {
             transition={{ duration: shouldReduceMotion ? 0.3 : 0.55, ease: 'easeOut' }}
             className="order-1 lg:order-2"
           >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">
-              <Mic size={16} />
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-bold text-primary shadow-lg shadow-primary/5">
+              <Sparkles size={16} />
               <span>حصرياً في هَوا</span>
             </div>
-            <h2 className="mb-6 text-4xl font-bold leading-tight lg:text-5xl">
+            <h2 className="mb-6 text-4xl font-black leading-tight lg:text-5xl">
               تكلم، وهَوا <span className="text-primary">ينفذ</span>
             </h2>
             <p className="mb-10 text-lg leading-relaxed text-slate-300">
@@ -118,9 +139,10 @@ export default function VoiceAI() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: shouldReduceMotion ? 0.25 : 0.4, delay: 0.12 + index * 0.06, ease: 'easeOut' }}
-                  className="flex gap-4"
+                  whileHover={shouldReduceMotion ? undefined : { x: -6 }}
+                  className="group flex gap-4 rounded-3xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur transition-colors hover:border-primary/25 hover:bg-white/[0.075]"
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-primary">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-950/70 text-primary transition-colors group-hover:bg-primary group-hover:text-slate-950">
                     {item.icon}
                   </div>
                   <div>

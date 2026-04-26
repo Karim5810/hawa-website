@@ -225,11 +225,16 @@ export default function JoinUs({ standalone = false, focusForm = null }: JoinUsP
   return (
     <section
       id={JOIN_US_SECTION_ID}
-      className={`section-shell scroll-mt-28 bg-slate-50 py-20 transition-colors duration-500 dark:bg-slate-950 ${
+      className={`section-shell relative scroll-mt-28 overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] py-24 transition-colors duration-500 dark:bg-[linear-gradient(180deg,#020617_0%,#0f172a_100%)] ${
         standalone ? 'min-h-[calc(100vh-10rem)] pt-32' : ''
       }`}
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="premium-grid absolute inset-0 opacity-40" />
+        <div className="absolute right-[-10rem] top-16 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute left-[-12rem] bottom-20 h-96 w-96 rounded-full bg-cyan-200/30 blur-3xl dark:bg-cyan-500/10" />
+      </div>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <m.div
           initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -237,7 +242,7 @@ export default function JoinUs({ standalone = false, focusForm = null }: JoinUsP
           transition={{ duration: shouldReduceMotion ? 0.3 : 0.5, ease: 'easeOut' }}
           className="mb-16 text-center"
         >
-          <h2 className="mb-4 text-4xl font-bold dark:text-white">
+          <h2 className="mb-4 text-4xl font-black dark:text-white lg:text-5xl">
             انضم لعائلة <span className="text-primary">هَوا</span>
           </h2>
           <p className="mx-auto max-w-3xl text-lg text-slate-600 dark:text-slate-400">
@@ -270,10 +275,10 @@ export default function JoinUs({ standalone = false, focusForm = null }: JoinUsP
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: shouldReduceMotion ? 0.28 : 0.45, ease: 'easeOut' }}
             whileHover={shouldReduceMotion ? undefined : { y: -6 }}
-            className={`group relative scroll-mt-28 overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white p-8 transition-colors dark:border-slate-800 dark:bg-slate-900 lg:p-12 ${driverCardClasses}`}
+            className={`group cinematic-shine relative scroll-mt-28 overflow-hidden rounded-[2.5rem] border border-white/80 bg-white/80 p-8 backdrop-blur-2xl transition-colors dark:border-white/10 dark:bg-white/[0.06] lg:p-12 ${driverCardClasses}`}
           >
-            <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-bl-full bg-primary/10 transition-transform group-hover:scale-150" />
-            <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-slate-900">
+            <div className="absolute top-0 right-0 h-36 w-36 rounded-bl-full bg-primary/10 transition-transform duration-500 group-hover:scale-150" />
+            <div className="relative mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-slate-900 shadow-xl shadow-primary/20">
               <Bike size={40} />
             </div>
             <h3 className="mb-4 text-3xl font-bold dark:text-white">سجل كمندوب توصيل</h3>
@@ -379,10 +384,11 @@ export default function JoinUs({ standalone = false, focusForm = null }: JoinUsP
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: shouldReduceMotion ? 0.28 : 0.45, delay: 0.06, ease: 'easeOut' }}
             whileHover={shouldReduceMotion ? undefined : { y: -6 }}
-            className={`group relative scroll-mt-28 overflow-hidden rounded-[2.5rem] bg-slate-900 p-8 text-white transition-colors dark:bg-slate-800 lg:p-12 ${vendorCardClasses}`}
+            className={`group cinematic-shine relative scroll-mt-28 overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-950 p-8 text-white transition-colors dark:bg-slate-900 lg:p-12 ${vendorCardClasses}`}
           >
-            <div className="absolute top-0 right-0 -z-10 h-32 w-32 rounded-bl-full bg-primary/20 transition-transform group-hover:scale-150" />
-            <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-800 text-primary dark:bg-slate-900">
+            <div className="absolute top-0 right-0 h-36 w-36 rounded-bl-full bg-primary/20 transition-transform duration-500 group-hover:scale-150" />
+            <div className="absolute bottom-[-6rem] left-[-5rem] h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+            <div className="relative mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-800 text-primary shadow-xl shadow-black/20 dark:bg-slate-900">
               <Store size={40} />
             </div>
             <h3 className="mb-4 text-3xl font-bold">سجل كشريك / تاجر</h3>
