@@ -10,7 +10,7 @@ const features = [
   {
     icon: <ShoppingCart size={32} />,
     title: 'سوبر ماركت وصيدلية',
-    description: 'كل مقاضي البيت والأدوية بتوصلك لحد باب البيت في أسرع وقت.',
+    description: 'كل طلبات البيت والأدوية بتوصلك لحد باب البيت في أسرع وقت.',
   },
   {
     icon: <Utensils size={32} />,

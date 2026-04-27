@@ -4,6 +4,10 @@ import { m, useReducedMotion } from '../lib/motion';
 
 let googleGenAiModulePromise: Promise<typeof import('@google/genai')> | null = null;
 
+const LIVE_MODEL = 'gemini-2.0-flash-exp';
+const SYSTEM_INSTRUCTION =
+  "أنت مساعد ذكي لتطبيق توصيل طلبات اسمه 'هَوا'. تحدث باللغة العربية بلهجة مصرية ودودة. ساعد المستخدم فيما يخص التطبيق.";
+
 function loadGoogleGenAi() {
   if (!googleGenAiModulePromise) {
     googleGenAiModulePromise = import('@google/genai');
@@ -18,20 +22,22 @@ export default function LiveVoiceAgent() {
   const [error, setError] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
-  const sessionRef = useRef<Promise<any> | null>(null);
+  const sessionRef = useRef<any | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const nextPlayTimeRef = useRef(0);
   const isDisconnectingRef = useRef(false);
+  const isSessionReadyRef = useRef(false);
 
-  const disconnect = () => {
+  const disconnect = (closeSession = true) => {
     if (isDisconnectingRef.current) {
       return;
     }
 
     isDisconnectingRef.current = true;
+    isSessionReadyRef.current = false;
 
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -54,13 +60,15 @@ export default function LiveVoiceAgent() {
       audioContextRef.current = null;
     }
 
-    if (sessionRef.current) {
-      void sessionRef.current
-        .then((session) => session.close())
-        .catch(() => undefined);
-      sessionRef.current = null;
+    if (closeSession && sessionRef.current) {
+      try {
+        sessionRef.current.close();
+      } catch {
+        // The SDK can throw when the socket has already closed.
+      }
     }
 
+    sessionRef.current = null;
     nextPlayTimeRef.current = 0;
     setIsConnected(false);
     setIsConnecting(false);
@@ -105,21 +113,69 @@ export default function LiveVoiceAgent() {
     nextPlayTimeRef.current += audioBuffer.duration;
   };
 
-  const connect = async () => {
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-
-    if (!geminiApiKey) {
-      setError('مفتاح Gemini غير متوفر حالياً.');
+  const startMicrophoneStreaming = () => {
+    if (!processorRef.current || !sourceRef.current || !audioContextRef.current || !sessionRef.current) {
       return;
     }
 
+    if (processorRef.current.onaudioprocess) {
+      return;
+    }
+
+    processorRef.current.onaudioprocess = (event: AudioProcessingEvent) => {
+      if (!isSessionReadyRef.current || !sessionRef.current) {
+        return;
+      }
+
+      const inputData = event.inputBuffer.getChannelData(0);
+      const pcm16 = new Int16Array(inputData.length);
+
+      for (let index = 0; index < inputData.length; index += 1) {
+        pcm16[index] = Math.max(-32768, Math.min(32767, inputData[index] * 32768));
+      }
+
+      const buffer = new Uint8Array(pcm16.buffer);
+      let binary = '';
+
+      for (let index = 0; index < buffer.byteLength; index += 1) {
+        binary += String.fromCharCode(buffer[index]);
+      }
+
+      try {
+        sessionRef.current.sendRealtimeInput({
+          audio: { data: btoa(binary), mimeType: 'audio/pcm;rate=16000' },
+        });
+      } catch (sendError) {
+        console.error('Failed to send Gemini Live audio chunk', sendError);
+        setError('انقطع الاتصال بالمساعد الصوتي.');
+        disconnect(false);
+      }
+    };
+
+    sourceRef.current.connect(processorRef.current);
+    processorRef.current.connect(audioContextRef.current.destination);
+  };
+
+  const connect = async () => {
     try {
       setIsConnecting(true);
       setError(null);
 
       const { GoogleGenAI, Modality } = await loadGoogleGenAi();
+      const tokenResponse = await fetch('/api/gemini-live-token', { method: 'POST' });
 
-      audioContextRef.current = new (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)!({
+      if (!tokenResponse.ok) {
+        throw new Error('Gemini Live token endpoint failed');
+      }
+
+      const tokenPayload = (await tokenResponse.json()) as { token?: string; model?: string };
+
+      if (!tokenPayload.token) {
+        throw new Error('Gemini Live token endpoint returned no token');
+      }
+
+      audioContextRef.current = new (window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)!({
         sampleRate: 16000,
       });
 
@@ -127,55 +183,30 @@ export default function LiveVoiceAgent() {
       sourceRef.current = audioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
       processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
 
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+      const ai = new GoogleGenAI({
+        apiKey: tokenPayload.token,
+        httpOptions: { apiVersion: 'v1alpha' },
+      });
 
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-3.1-flash-live-preview',
+      const session = await ai.live.connect({
+        model: tokenPayload.model ?? LIVE_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'charon' } },
           },
-          systemInstruction:
-            "أنت مساعد ذكي لتطبيق توصيل طلبات اسمه 'هَوا'. تحدث باللغة العربية بلهجة مصرية ودودة. ساعد المستخدم فيما يخص التطبيق.",
+          systemInstruction: SYSTEM_INSTRUCTION,
         },
         callbacks: {
-          onopen: () => {
-            setIsConnected(true);
-            setIsConnecting(false);
-
-            if (!processorRef.current || !sourceRef.current || !audioContextRef.current) {
+          onmessage: (message: any) => {
+            if (message.setupComplete) {
+              isSessionReadyRef.current = true;
+              setIsConnected(true);
+              setIsConnecting(false);
+              startMicrophoneStreaming();
               return;
             }
 
-            processorRef.current.onaudioprocess = (event: AudioProcessingEvent) => {
-              const inputData = event.inputBuffer.getChannelData(0);
-              const pcm16 = new Int16Array(inputData.length);
-
-              for (let index = 0; index < inputData.length; index += 1) {
-                pcm16[index] = Math.max(-32768, Math.min(32767, inputData[index] * 32768));
-              }
-
-              const buffer = new Uint8Array(pcm16.buffer);
-              let binary = '';
-
-              for (let index = 0; index < buffer.byteLength; index += 1) {
-                binary += String.fromCharCode(buffer[index]);
-              }
-
-              const base64Data = btoa(binary);
-
-              void sessionPromise.then((session) =>
-                session.sendRealtimeInput({
-                  audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' },
-                }),
-              );
-            };
-
-            sourceRef.current.connect(processorRef.current);
-            processorRef.current.connect(audioContextRef.current.destination);
-          },
-          onmessage: (message: any) => {
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
 
             if (base64Audio) {
@@ -186,20 +217,32 @@ export default function LiveVoiceAgent() {
               nextPlayTimeRef.current = audioContextRef.current?.currentTime ?? 0;
             }
           },
-          onerror: () => {
+          onerror: (event) => {
+            console.error('Gemini Live socket error', event);
             setError('حدث خطأ في الاتصال.');
-            disconnect();
+            disconnect(false);
           },
-          onclose: () => {
+          onclose: (event) => {
             if (!isDisconnectingRef.current) {
-              disconnect();
+              console.warn('Gemini Live socket closed', {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+              });
+              setError(event.reason || '');
+              disconnect(false);
             }
           },
         },
       });
 
-      sessionRef.current = sessionPromise;
-    } catch {
+      sessionRef.current = session;
+
+      if (isSessionReadyRef.current) {
+        startMicrophoneStreaming();
+      }
+    } catch (connectError) {
+      console.error('Failed to connect Gemini Live assistant', connectError);
       setError('تعذر الوصول إلى الميكروفون أو الاتصال بالخادم.');
       setIsConnecting(false);
       disconnect();
@@ -215,7 +258,7 @@ export default function LiveVoiceAgent() {
       <m.button
         whileHover={shouldReduceMotion || isConnecting ? undefined : { scale: 1.03 }}
         whileTap={shouldReduceMotion || isConnecting ? undefined : { scale: 0.97 }}
-        onClick={isConnected ? disconnect : connect}
+        onClick={isConnected ? () => disconnect() : connect}
         disabled={isConnecting}
         className={`relative flex items-center justify-center gap-3 rounded-full px-8 py-4 text-lg font-bold shadow-xl transition-all ${
           isConnected

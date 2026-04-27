@@ -84,15 +84,7 @@ export default function VoiceAI() {
               <div className="pulse-ring absolute h-72 w-72 rounded-full border border-primary/20 [animation-delay:0.55s]" />
               <div className="relative mb-8 flex h-28 w-28 items-center justify-center rounded-full border border-primary/25 bg-slate-950/70 shadow-[0_0_80px_rgba(179,255,56,0.22)]">
                 <AudioWaveform size={38} className="text-primary" />
-                <div className="absolute bottom-5 flex items-end gap-1">
-                  {[18, 26, 34, 24, 16].map((height, index) => (
-                    <span
-                      key={`voice-bar-${index}`}
-                      className="sound-bar block w-1.5 rounded-full bg-primary"
-                      style={{ height }}
-                    />
-                  ))}
-                </div>
+            
               </div>
               <div className="mb-8 text-center">
                 <h3 className="mb-2 text-2xl font-bold text-white">جرّب المساعد الصوتي بنفسك</h3>
